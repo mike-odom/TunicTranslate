@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#14161c"/>
+  <!-- the same Trunic glyph as the PNG icons (tools/build_icons.js): bar, stem and a V of slants -->
+  <svg x="17" y="9" width="30" height="46" viewBox="0 0 30 46" overflow="hidden">
+    <path d="M15 3V43M0 22H30M-2 7L15 15M32 7L15 15" stroke="#f2b441" stroke-width="6" fill="none"/>
+  </svg>
+</svg>

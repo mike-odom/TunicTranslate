@@ -1,0 +1,17 @@
+node_modules/
+
+# Tool caches
+.cache/
+.npm/
+.eslintcache
+.parcel-cache/
+.vite/
+.turbo/
+.pytest_cache/
+__pycache__/
+*.pyc
+.codegraph/
+.semble/
+.claude/
+.DS_Store
+*.log

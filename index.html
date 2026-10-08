@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trunic Translator</title>
+  <meta name="description" content="Read Trunic text from an image, or tap segments to build a glyph from the game Tunic and see its sound. String glyphs into words.">
+  <meta name="theme-color" content="#14161c">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="page-head">
+    <h1>Trunic Translator</h1>
+    <p class="lede">Tap the lines to build a glyph from <em>Tunic</em>. The sound appears as you go.</p>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="scan-title">
+      <h2 id="scan-title">Read an image</h2>
+      <p class="hint scan-hint">Upload a picture of Trunic text, capture one with your camera, or start the live camera to read it twice a second with the English written over each word. Nothing leaves your device.</p>
+
+      <div class="actions scan-actions">
+        <label for="image-input" class="field-label">Image file</label>
+        <input type="file" id="image-input" accept="image/*">
+        <button type="button" id="btn-capture">Capture</button>
+        <button type="button" id="btn-capture-cancel" hidden>Cancel</button>
+      </div>
+      <input type="file" id="capture-input" accept="image/*" capture="environment" hidden>
+
+      <div class="actions scan-actions" role="group" aria-label="Live camera">
+        <span class="field-label">Live camera</span>
+        <button type="button" id="btn-live-start">Start camera</button>
+        <button type="button" id="btn-live-stop" disabled>Stop camera</button>
+      </div>
+      <div class="live-stage" id="live-stage" hidden>
+        <video id="live-video" class="live-video" playsinline muted aria-label="Live camera preview"></video>
+        <canvas id="live-overlay" class="live-overlay" aria-hidden="true"></canvas>
+      </div>
+
+      <video id="camera" class="scan-media" playsinline muted hidden aria-label="Camera preview"></video>
+      <canvas id="scan-canvas" class="scan-media" role="img" aria-label="The image being read" hidden></canvas>
+
+      <p class="scan-status" id="scan-status" role="status"></p>
+      <div class="scan-result" id="scan-result" aria-live="polite"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="composer-title">
+      <h2 id="composer-title">Glyph composer</h2>
+
+      <div class="composer">
+        <div class="stage">
+          <svg id="composer-svg" class="composer-svg" role="group" aria-label="Glyph segments" focusable="false"></svg>
+        </div>
+
+        <div class="readout" aria-live="polite">
+          <dl class="sounds">
+            <div><dt>Consonant</dt><dd id="out-consonant">&mdash;</dd></div>
+            <div><dt>Vowel</dt><dd id="out-vowel">&mdash;</dd></div>
+          </dl>
+          <p class="spelling" id="out-spelling" aria-label="Glyph spelling">&nbsp;</p>
+          <p class="ipa" id="out-ipa">&nbsp;</p>
+          <p class="note" id="out-note"></p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" id="btn-circle" aria-pressed="false">Circle: vowel first</button>
+        <button type="button" id="btn-clear-glyph">Clear glyph</button>
+        <button type="button" id="btn-add" class="primary" disabled>Add to word</button>
+      </div>
+      <p class="hint">Inner lines (7, including the bar) make consonants. Outer lines (6) make vowels.
+        A circle under the glyph means the vowel is read first.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="word-title">
+      <h2 id="word-title">Word</h2>
+      <div id="word-glyphs" class="word-glyphs" aria-label="Glyphs in the word"></div>
+      <p class="word-empty" id="word-empty">No glyphs yet. Build one above and press &ldquo;Add to word&rdquo;.</p>
+      <div class="word-out" aria-live="polite">
+        <p class="spelling" id="word-spelling">&nbsp;</p>
+        <p class="ipa" id="word-ipa">&nbsp;</p>
+        <p class="note" id="word-note"></p>
+      </div>
+      <div class="actions">
+        <button type="button" id="btn-backspace" disabled>Remove last</button>
+        <button type="button" id="btn-clear-word" disabled>Clear word</button>
+      </div>
+      <p class="hint">Tap a glyph in the word to edit it.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="chart-title">
+      <h2 id="chart-title">Chart</h2>
+      <p class="hint">Tap a sound to put it in the composer. A vowel keeps your consonant lines and a consonant keeps your vowel lines, so you can combine them.</p>
+      <h3 id="vowels-title">Vowels <span class="count" id="vowel-count"></span></h3>
+      <div class="chart" id="chart-vowels" role="group" aria-labelledby="vowels-title"></div>
+      <h3 id="consonants-title">Consonants <span class="count" id="consonant-count"></span></h3>
+      <div class="chart" id="chart-consonants" role="group" aria-labelledby="consonants-title"></div>
+    </section>
+  </main>
+
+  <footer class="page-foot">
+    <p>Glyph table and proportions measured from the
+      <a href="https://omniglot.com/writing/trunic.htm">Omniglot Trunic chart</a>.
+      English words come from the
+      <a href="http://www.speech.cs.cmu.edu/cgi-bin/cmudict">CMU Pronouncing Dictionary</a>,
+      ranked by <a href="https://norvig.com/ngrams/">Peter Norvig&rsquo;s word counts</a>.</p>
+  </footer>
+
+  <script src="trunic.js"></script>
+  <script src="words.js"></script>
+  <script src="recognize.js"></script>
+  <script src="english.js"></script>
+  <script src="live.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
