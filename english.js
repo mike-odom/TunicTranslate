@@ -22,7 +22,7 @@
  * for that). Otherwise the cheapest word wins. Words at the same cost
  * (homophones, or equally wrong guesses) go to the more frequent one, which is
  * how the dictionary is ordered, except for the words in PREFERRED ("hole"
- * beats "whole", "flee" beats "flea"). The remaining words at that cost are
+ * beats "whole", "flee" beats "flea", "gnaw" beats "na"). The remaining words at that cost are
  * returned as alternatives.
  */
 (function (root, factory) {
@@ -60,9 +60,9 @@
   var INDEL = 10, INDEL_SCHWA = 6, SUBSTITUTE = 10, CROSS_CLASS = 15, SCHWA_SWAP = 3;
 
   // Words that win a tie against the more frequent word they sound like
-  // ("hole" over "whole", "flee" over "flea"), because the frequency order
-  // picks the wrong one. Keep this short: it only settles exact homophones.
-  var PREFERRED = { hole: true, flee: true };
+  // ("hole" over "whole", "flee" over "flea", "gnaw" over "na"), because the
+  // frequency order picks the wrong one. Keep this short: it only settles exact homophones.
+  var PREFERRED = { hole: true, flee: true, gnaw: true };
 
   /**
    * ARPAbet phonemes for a decoded glyph (see Trunic.decodeGlyph), or null when

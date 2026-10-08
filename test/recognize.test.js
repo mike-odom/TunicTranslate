@@ -54,6 +54,17 @@ test('the first line of the sample reads: the lever overworked the fulcrum shatt
   });
 });
 
+test('recognition of the sample image reads all six English lines exactly', () => {
+  assert.deepEqual(english.map((line) => line.text), [
+    'the lever overworked the fulcrum shattered a hole in',
+    'truth will thunder open and all manner of disquiet',
+    'contradictions will gnaw apart the canonical plain',
+    'the thread is snagged into a squirming coil with',
+    'no beginning and no end flee to your arcs',
+    'old ones and become your predestined selves'
+  ]);
+});
+
 test('the first line is read glyph by glyph as these sounds', () => {
   assert.equal(english[0].phonetic, 'theh lee-vir ohv-ir-wir-k-t theh fou-l-k-reh-m sha-tir-d eh hoh-l in');
 });
