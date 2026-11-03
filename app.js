@@ -308,16 +308,111 @@
     });
   }
 
+  // ---- upload and analyze ----------------------------------------------------
+  // The server stores the still picture with these notes and the reading below,
+  // and has Claude review the reading (see server.js).
+  var lastReading = [];
+  var lastEngine = {};      // how the engine read it: scale, threshold, tilt, glyph size
+
+  function showAnalyze(visible) {
+    $('analyze').hidden = !visible;
+    $('analysis').hidden = true;
+    $('analysis').textContent = '';
+    $('analyze-status').textContent = '';
+    $('analyze-status').classList.remove('error');
+  }
+
+  function setAnalyzeStatus(text, isError) {
+    var node = $('analyze-status');
+    node.textContent = text;
+    node.classList.toggle('error', !!isError);
+  }
+
+  // The access code is remembered on this device after the server accepts it.
+  var CODE_KEY = 'trunic-access-code';
+  function rememberCode(code) {
+    try { localStorage.setItem(CODE_KEY, code); } catch (e) { /* storage blocked: ask again next time */ }
+  }
+  function recallCode() {
+    try { return localStorage.getItem(CODE_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function canvasToBase64(canvas) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (blob) {
+        if (!blob) { reject(new Error('The picture could not be encoded.')); return; }
+        var reader = new FileReader();
+        reader.onload = function () { resolve(String(reader.result).split(',')[1]); };
+        reader.onerror = function () { reject(new Error('The picture could not be encoded.')); };
+        reader.readAsDataURL(blob);
+      }, 'image/jpeg', 0.92);
+    });
+  }
+
+  function analyze() {
+    var button = $('btn-analyze');
+    button.disabled = true;
+    $('analysis').hidden = true;
+    setAnalyzeStatus('Uploading and analyzing…');
+    canvasToBase64($('scan-canvas')).then(function (data) {
+      return fetch('api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Access-Code': $('analyze-code').value.trim() },
+        body: JSON.stringify({
+          imageBase64: data,
+          mediaType: 'image/jpeg',
+          notes: $('analyze-notes').value,
+          reading: lastReading,
+          engine: lastEngine
+        })
+      });
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (body) {
+        if (!res.ok) {
+          if (body.needsCode) $('analyze-code').focus();
+          throw new Error(body.error || 'The server answered ' + res.status + '.');
+        }
+        return body;
+      });
+    }).then(function (body) {
+      rememberCode($('analyze-code').value.trim());   // only a code the server accepted
+      var out = $('analysis');
+      out.textContent = body.analysis || '(Claude returned no text.)';
+      out.hidden = false;
+      setAnalyzeStatus('Saved as ' + body.id + '.');
+    }).catch(function (e) {
+      var offline = e instanceof TypeError;   // fetch rejects with TypeError when the server is unreachable
+      setAnalyzeStatus(offline ? 'Could not reach the server. Start it with npm start.' : e.message, true);
+    }).then(function () { button.disabled = false; });
+  }
+
   // Read whatever is on the scan canvas.
   function readCanvas(canvas) {
     setStatus('Reading…');
     $('scan-result').textContent = '';
+    lastReading = [];
+    lastEngine = {};
+    showAnalyze(true);
     // let the status paint before the (synchronous) recognition runs
     setTimeout(function () {
       try {
         var pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-        var reading = window.TrunicRecognize.recognize(pixels);
-        var lines = window.TrunicEnglish.translate(reading);
+        var result = window.TrunicReader.read(pixels);
+        var lines = result.lines;
+        lastEngine = {
+          imageWidth: canvas.width, imageHeight: canvas.height, factor: result.factor,
+          method: result.reading.method, skewDegrees: result.reading.skew ? +(result.reading.skew * 180 / Math.PI).toFixed(2) : 0,
+          glyphHeight: +(result.reading.glyphHeight || 0).toFixed(1), exactScore: +result.exact.toFixed(1)
+        };
+        lastReading = lines.map(function (l) {
+          return {
+            text: l.text,
+            phonetic: l.phonetic,
+            words: l.words.map(function (w) {
+              return { english: w.english, spelling: w.spelling, cost: isFinite(w.cost) ? w.cost : null, alternatives: w.alternatives };
+            })
+          };
+        });
         if (!lines.length) {
           setStatus('No Trunic words found. Try a straighter, sharper picture with dark lines on a plain background.', true);
           return;
@@ -369,13 +464,14 @@
     var media = navigator.mediaDevices;
     if (!media || !media.getUserMedia) { $('capture-input').click(); return; }
     setStatus('Starting the camera…');
-    media.getUserMedia({ video: { facingMode: 'environment' }, audio: false }).then(function (s) {
+    media.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }).then(function (s) {
       stream = s;
       var video = $('camera');
       video.srcObject = s;
       video.hidden = false;
       $('scan-canvas').hidden = true;
       $('scan-result').textContent = '';
+      showAnalyze(false);
       $('btn-capture').textContent = 'Take photo';
       $('btn-capture-cancel').hidden = false;
       setStatus('Line the text up in the picture, then press Take photo.');
@@ -500,6 +596,7 @@
       $('live-stage').hidden = false;
       $('scan-canvas').hidden = true;
       $('scan-result').textContent = '';
+      showAnalyze(false);
       return video.play().then(function () {
         if (session !== live.session) return;
         setStatus('Looking for Trunic words…');
@@ -528,6 +625,8 @@
     readFile(e.target.files[0]);
     e.target.value = '';
   });
+  $('analyze-code').value = recallCode();
+  $('btn-analyze').addEventListener('click', analyze);
   $('btn-capture').addEventListener('click', onCapture);
   $('btn-capture-cancel').addEventListener('click', function () {
     stopCamera();

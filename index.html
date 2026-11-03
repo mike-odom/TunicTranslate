@@ -21,7 +21,7 @@
   <main>
     <section class="panel" aria-labelledby="scan-title">
       <h2 id="scan-title">Read an image</h2>
-      <p class="hint scan-hint">Upload a picture of Trunic text, capture one with your camera, or start the live camera to read it twice a second with the English written over each word. Nothing leaves your device.</p>
+      <p class="hint scan-hint">Upload a picture of Trunic text, capture one with your camera, or start the live camera to read it twice a second with the English written over each word. Nothing leaves your device unless you press &ldquo;Upload and analyze&rdquo; on a still picture.</p>
 
       <div class="actions scan-actions">
         <label for="image-input" class="field-label">Image file</label>
@@ -46,6 +46,18 @@
 
       <p class="scan-status" id="scan-status" role="status"></p>
       <div class="scan-result" id="scan-result" aria-live="polite"></div>
+
+      <div class="analyze" id="analyze" hidden>
+        <label for="analyze-notes" class="field-label">Notes for the analysis</label>
+        <textarea id="analyze-notes" rows="3" maxlength="5000" placeholder="e.g. This rune translation is correct, but there's lots of garbage around it."></textarea>
+        <div class="actions analyze-actions">
+          <label for="analyze-code" class="field-label">Access code</label>
+          <input type="password" id="analyze-code" autocomplete="off" spellcheck="false">
+          <button type="button" id="btn-analyze" class="primary">Upload and analyze</button>
+        </div>
+        <p class="scan-status" id="analyze-status" role="status"></p>
+        <div class="analysis" id="analysis" tabindex="-1" hidden></div>
+      </div>
     </section>
 
     <section class="panel" aria-labelledby="composer-title">
@@ -114,6 +126,7 @@
   <script src="words.js"></script>
   <script src="recognize.js"></script>
   <script src="english.js"></script>
+  <script src="reader.js"></script>
   <script src="live.js"></script>
   <script src="app.js"></script>
 </body>

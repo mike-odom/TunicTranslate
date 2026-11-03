@@ -34,14 +34,27 @@
    */
   function describe(reading, translation, size) {
     var words = [];
+    // A tilted frame was read after being straightened about its centre, so positions
+    // are in that straightened frame; carry each word's bar centre back to the frame
+    // the camera shows (the plate stays level, which is close for the tilts handled).
+    var skew = reading.skew || 0, cos = Math.cos(skew), sin = Math.sin(skew);
     reading.lines.forEach(function (line, li) {
       line.words.forEach(function (w, wi) {
         var t = translation[li].words[wi];
+        var x0 = w.x0, x1 = w.x1 + 1, barY = line.y;
+        if (skew) {
+          var dx = (x0 + x1) / 2 - size.width / 2, dy = line.y - size.height / 2;
+          var cx = cos * dx + sin * dy + size.width / 2;
+          barY = -sin * dx + cos * dy + size.height / 2;
+          var half = (x1 - x0) / 2;
+          x0 = cx - half;
+          x1 = cx + half;
+        }
         words.push({
-          x0: w.x0,
-          x1: w.x1 + 1,
-          top: line.y - BAR_CENTRE * reading.glyphHeight,
-          height: reading.glyphHeight,
+          x0: x0,
+          x1: x1,
+          top: barY - BAR_CENTRE * (line.glyphHeight || reading.glyphHeight),
+          height: line.glyphHeight || reading.glyphHeight,
           english: t.english,
           phonetic: t.spelling
         });

@@ -59,6 +59,11 @@
 
   var INDEL = 10, INDEL_SCHWA = 6, SUBSTITUTE = 10, CROSS_CLASS = 15, SCHWA_SWAP = 3;
 
+  // Stands in for a sound that could not be read (a glyph whose lines match no chart
+  // sound). It matches any phoneme for 5 and is dropped for 3, since it may be one
+  // sound or two: still dearer than a clean match, cheaper than a misread consonant.
+  var WILDCARD = '?', WILD_SUB = 5, WILD_INDEL = 3;
+
   // Words that win a tie against the more frequent word they sound like
   // ("hole" over "whole", "flee" over "flea", "gnaw" over "na"), because the
   // frequency order picks the wrong one. Keep this short: it only settles exact homophones.
@@ -75,17 +80,28 @@
     return decoded.vowelFirst ? v.concat(c) : c.concat(v);
   }
 
-  /** ARPAbet phonemes for a word's glyphs ({inner, outer, vowelFirst}), or null if any glyph is unknown. */
+  /**
+   * ARPAbet phonemes for a word's glyphs ({inner, outer, vowelFirst}), or null when
+   * too little of it is readable to guess from. A glyph (or half of one) that matches
+   * no chart sound becomes WILDCARD, so a word with one misread line still gets a
+   * best guess; a word with half its glyphs unreadable does not.
+   */
   function wordPhonemes(glyphs) {
-    var out = [];
+    var out = [], glyphCount = 0, unreadable = 0;
     for (var i = 0; i < glyphs.length; i++) {
       var d = Trunic.decodeGlyph(glyphs[i]);
       if (d.empty) continue;
+      glyphCount++;
       var p = glyphPhonemes(d);
-      if (!p) return null;
+      if (!p) {
+        unreadable++;
+        var c = !d.hasConsonant ? [] : d.consonant ? ARPABET[d.consonant.id] : [WILDCARD];
+        var v = !d.hasVowel ? [] : d.vowel ? ARPABET[d.vowel.id] : [WILDCARD];
+        p = d.vowelFirst ? v.concat(c) : c.concat(v);
+      }
       out.push.apply(out, p);
     }
-    return out;
+    return unreadable * 2 > glyphCount ? null : out;
   }
 
   // ---- dictionary index (built on first use) ---------------------------------
@@ -102,7 +118,7 @@
 
     // sub[a * n + b]: cost of reading heard phoneme a as dictionary phoneme b.
     // Rows 0..n-1 are the dictionary's own symbols; the "either" symbols follow.
-    var eitherNames = Object.keys(EITHER), rows = n + eitherNames.length;
+    var eitherNames = Object.keys(EITHER), wildRow = n + eitherNames.length, rows = wildRow + 1;
     var sub = new Uint8Array(rows * n);
     for (var a = 0; a < n; a++) {
       for (var b = 0; b < n; b++) {
@@ -131,6 +147,10 @@
         sub[row * n + b] = Math.min.apply(null, members.map(function (m) { return sub[m * n + b]; }));
       }
     });
+
+    symbolIndex[WILDCARD] = wildRow;
+    indel[wildRow] = WILD_INDEL;
+    for (var w = 0; w < n; w++) sub[wildRow * n + w] = WILD_SUB;
 
     var charIndex = {};
     for (var i = 0; i < chars.length; i++) charIndex[chars[i]] = i;
@@ -239,9 +259,10 @@
 
   /**
    * Best English word for a phoneme list (ARPAbet symbols).
-   * @returns {{word:string, cost:number, exact:boolean, alternatives:string[]}|null}
-   *   `cost` is in tenths of an edit (0 = exact pronunciation); `alternatives`
-   *   are other words at the same cost, most frequent first.
+   * @returns {{word:string, cost:number, exact:boolean, rank:number, alternatives:string[]}|null}
+   *   `cost` is in tenths of an edit (0 = exact pronunciation); `rank` the word's place
+   *   in the frequency order (0 is the most common); `alternatives` are other words at
+   *   the same cost, most frequent first.
    */
   function lookup(phonemes) {
     if (!phonemes || !phonemes.length) return null;
@@ -254,7 +275,7 @@
     if (hit.length) return result(hit, 0);
 
     var best = Infinity, ties = [];
-    var minIndel = INDEL_SCHWA;
+    var minIndel = phonemes.indexOf(WILDCARD) >= 0 ? WILD_INDEL : INDEL_SCHWA;
     for (var e = 0; e < ix.entries.length; e++) {
       var entry = ix.entries[e];
       var cost = Infinity;
@@ -278,6 +299,7 @@
       word: entries[0].word,
       cost: cost,
       exact: cost === 0,
+      rank: entries[0].rank,     // place in the dictionary's frequency order (0 = "the")
       alternatives: entries.slice(1, 6).map(function (e) { return e.word; })
     };
   }
@@ -300,8 +322,10 @@
         return {
           english: hit ? hit.word : null,
           cost: hit ? hit.cost : Infinity,
+          rank: hit ? hit.rank : null,
           alternatives: hit ? hit.alternatives : [],
-          spelling: w.spelling
+          spelling: w.spelling,
+          weak: !!w.weak          // the recognizer was unsure this bar is a word (see recognize.js)
         };
       });
       return {

@@ -167,6 +167,22 @@ input[type="file"]:focus-visible { outline: 2px solid var(--focus); outline-offs
 .scan-english .guess, .scan-english .alt { text-decoration: underline dotted; text-underline-offset: 0.2em; cursor: help; }
 .scan-english .unreadable { color: #ff9d7a; }
 
+.analyze { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--panel-edge); }
+.analyze[hidden], .analysis[hidden] { display: none; }
+.analyze textarea {
+  display: block; width: 100%; margin-top: 0.25rem; padding: 0.55rem 0.7rem;
+  font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--panel-edge); border-radius: 8px; resize: vertical;
+}
+.analyze textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.analyze-actions { align-items: center; }
+.analyze-actions input {
+  flex: 1 1 8rem; min-width: 0; min-height: 2.75rem; padding: 0.4rem 0.7rem; font: inherit; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--panel-edge); border-radius: 8px;
+}
+.analyze-actions input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.analysis { margin-top: 0.75rem; padding: 0.75rem; background: var(--bg); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
 /* ---- chart ---- */
 .chart { display: grid; grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr)); gap: 0.5rem; }
 .chart-item {

@@ -1,0 +1,8 @@
+{
+  "about": "Phone photo of a monitor showing a Tunic manual card ('Ringing the West Bell', manual page 28, whose transcription reads: 'Can you see the bell but not reach it? Try going to the West Garden. Via the Dark Tomb.'; 'West Garden' and 'Dark Tomb' are printed in English). 1080x1920, sharp, tilted about 3 degrees.",
+  "mustContain": [
+    "see the bell",
+    "via the"
+  ],
+  "maxLines": 3
+}

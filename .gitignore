@@ -15,3 +15,7 @@ __pycache__/
 .claude/
 .DS_Store
 *.log
+
+# Uploaded pictures and analyses (server.js)
+uploads/
+.env

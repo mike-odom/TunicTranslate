@@ -7,6 +7,7 @@ const jpeg = require('jpeg-js');
 const Recognize = require('../recognize.js');
 const English = require('../english.js');
 const Live = require('../live.js');
+const degrade = require('./helpers/degrade.js');
 
 const sample = jpeg.decode(fs.readFileSync(path.join(__dirname, 'fixtures', 'smp_trunic.jpg')), { useTArray: true });
 const reading = Recognize.recognize(sample);
@@ -102,4 +103,29 @@ test('draw clears the previous overlay and writes "?" for a word with no English
   Live.draw(ctx, null);
   assert.equal(ctx.calls.clears, 2);
   assert.equal(ctx.calls.texts.length, 2);      // nothing new drawn
+});
+
+test('describe carries word boxes of a straightened frame back to the camera frame', () => {
+  const size = { width: sample.width, height: sample.height };
+  const tiltedReading = Recognize.recognize(degrade.rotate(sample, 3));
+  assert.ok(tiltedReading.skew, 'the tilted frame should have been straightened');
+  const tilted = Live.describe(tiltedReading, English.translate(tiltedReading), size);
+  assert.equal(tilted.words.length, frame.words.length);
+
+  // degrade.rotate turns the picture about its centre, so each word of the level frame
+  // should sit where that turn puts it. Compare word centres on the bar line.
+  const a = 3 * Math.PI / 180;
+  const barY = (w) => w.top + 0.5 * w.height;   // the same offset on both sides
+  let compared = 0;
+  frame.words.forEach((w, i) => {
+    const got = tilted.words[i];
+    if (got.english !== w.english) return;
+    const dx = (w.x0 + w.x1) / 2 - size.width / 2, dy = barY(w) - size.height / 2;
+    const x = Math.cos(a) * dx - Math.sin(a) * dy + size.width / 2;
+    const y = Math.sin(a) * dx + Math.cos(a) * dy + size.height / 2;
+    assert.ok(Math.abs((got.x0 + got.x1) / 2 - x) < 6, 'word ' + i + ' x');
+    assert.ok(Math.abs(barY(got) - y) < 6, 'word ' + i + ' y');
+    compared++;
+  });
+  assert.ok(compared > 30, 'only ' + compared + ' words compared');
 });
