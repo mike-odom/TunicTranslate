@@ -39,6 +39,8 @@
   var COMMON_RANK = 5000, RARE_RANK = 20000;   // frequency ranks that make a word common, or rare
   var MIN_LINE_SCORE = 2.8;           // exactScore a line needs to be kept: one exact word of two glyphs
   var MIN_LONE_WORD = 5.1;            // a line of one word needs that word to have three glyphs (3^1.5)
+  var TILE_SIDE = 900;                // a page scan is also read in tiles this long on a side...
+  var TILE_OVERLAP = 300;             // ...overlapping by this much, so a block cut by one tile edge is whole in another
 
   /** Bilinear enlargement of an RGBA image by `factor` (1 returns the image itself). */
   function enlarge(img, factor) {
@@ -131,25 +133,27 @@
 
   // A kept line placed in the original picture: its bar height, its glyph size, and the
   // span of each word, all in the picture's own pixels.
-  function place(src, line, reading, size, factor) {
+  function place(src, line, reading, size, factor, offset) {
     var x0 = Infinity, x1 = -Infinity;
     src.words.forEach(function (w) { x0 = Math.min(x0, w.x0); x1 = Math.max(x1, w.x1); });
     var centre = original((x0 + x1) / 2, src.y, reading, size);
+    var ox = offset ? offset.x : 0, oy = offset ? offset.y : 0;
     return {
-      y: centre.y / factor,
+      y: centre.y / factor + oy,
       glyph: (src.glyphHeight || reading.glyphHeight) / factor,
       line: line,
       score: exactScore([line]),
       spans: src.words.map(function (w) {
         var a = original(w.x0, src.y, reading, size), b = original(w.x1, src.y, reading, size);
-        return [a.x / factor, b.x / factor];
+        return [a.x / factor + ox, b.x / factor + ox];
       })
     };
   }
 
   // Every variant reading of the picture at one enlargement, each translated and
   // cleaned, with its kept lines placed in the original picture for merging.
-  function readAt(img, factor, bridge) {
+  // `offset` is where `img` sits in a larger picture it was cut from (see readTiles).
+  function readAt(img, factor, bridge, offset) {
     var scaled = enlarge(img, factor), size = { width: scaled.width, height: scaled.height };
     var kept = [], best = null;
     Recognize.recognizeAll(scaled, { bridge: bridge, polarity: 'both' }).forEach(function (reading) {
@@ -158,11 +162,47 @@
       var attempt = { reading: reading, lines: lines, factor: factor, exact: exactScore(lines) };
       if (!best || attempt.exact > best.exact) best = attempt;
       clean.lines.forEach(function (line, i) {
-        kept.push(place(clean.reading.lines[i], line, reading, size, factor));
+        kept.push(place(clean.reading.lines[i], line, reading, size, factor, offset));
       });
     });
     best.kept = kept;
     return best;
+  }
+
+  /** The `w` x `h` part of `img` at (x, y). */
+  function crop(img, x, y, w, h) {
+    var out = { width: w, height: h, data: new Uint8ClampedArray(w * h * 4) };
+    for (var row = 0; row < h; row++) {
+      var from = ((y + row) * img.width + x) * 4;
+      out.data.set(img.data.subarray ? img.data.subarray(from, from + w * 4) : Array.prototype.slice.call(img.data, from, from + w * 4), row * w * 4);
+    }
+    return out;
+  }
+
+  // Starts of the tiles along one side: as few as cover it with the wanted overlap, evenly spread.
+  function tileStarts(length) {
+    if (length <= TILE_SIDE) return [0];
+    var n = Math.ceil((length - TILE_OVERLAP) / (TILE_SIDE - TILE_OVERLAP)), out = [];
+    for (var i = 0; i < n; i++) out.push(Math.round(i * (length - TILE_SIDE) / (n - 1)));
+    return out;
+  }
+
+  /**
+   * A page scan read in overlapping tiles. The whole picture is thresholded and sized by
+   * its dominant ink (a page's artwork and its rules outvote a small block of text), while
+   * a tile holds one or two blocks, so a block the page reading overlooked reads fine in
+   * the tile that holds it. Tiles that find nothing cost only their time; the lines they
+   * do find are merged with the page's (mergeLines).
+   */
+  function readTiles(img, bridge) {
+    var attempts = [];
+    var tw = Math.min(TILE_SIDE, img.width), th = Math.min(TILE_SIDE, img.height);
+    tileStarts(img.height).forEach(function (y) {
+      tileStarts(img.width).forEach(function (x) {
+        attempts.push(readAt(crop(img, x, y, tw, th), 1, bridge, { x: x, y: y }));
+      });
+    });
+    return attempts;
   }
 
   /**
@@ -180,10 +220,22 @@
     var clusters = [];
     candidates.forEach(function (c) {
       var home = null;
-      clusters.forEach(function (k) { if (!home && Math.abs(k.lead.y - c.y) < 0.5 * Math.min(k.lead.glyph, c.glyph)) home = k; });
+      clusters.forEach(function (k) {
+        if (!home && Math.abs(k.lead.y - c.y) < 0.5 * Math.min(k.lead.glyph, c.glyph) && sharesColumn(k.lead, c)) home = k;
+      });
       if (home) home.others.push(c); else clusters.push({ lead: c, others: [] });
     });
-    return clusters.sort(function (a, b) { return a.lead.y - b.lead.y; }).map(function (k) { return voteWords(k.lead, k.others); });
+    return clusters.sort(function (a, b) { return a.lead.y - b.lead.y || a.lead.spans[0][0] - b.lead.spans[0][0]; })
+      .map(function (k) { return voteWords(k.lead, k.others); });
+  }
+
+  // Two readings on one row are of the same text only if they cover some of the same
+  // ground: a page's two columns share rows but not words, and a reading of one column
+  // must not be voted down (or dropped as running past the text) by the other's.
+  function sharesColumn(a, b) {
+    var a0 = a.spans[0][0], a1 = a.spans[a.spans.length - 1][1], b0 = b.spans[0][0], b1 = b.spans[b.spans.length - 1][1];
+    var overlap = Math.min(a1, b1) - Math.max(a0, b0);
+    return overlap > 0.3 * Math.min(a1 - a0, b1 - b0);
   }
 
   // How much a reading of one word is worth in a vote. A word on a bar the recognizer
@@ -268,6 +320,7 @@
       // calls for is tried (small or blurred glyphs read better enlarged), or 2x once
       // when nothing was read at all.
       if (i === 0 && longSide > FULL_SEARCH_SIDE) {
+        if (!options || options.tiles !== false) attempts.push.apply(attempts, readTiles(img, withBridge.exact >= withoutBridge.exact));
         var kept = withBridge.kept.concat(withoutBridge.kept), smallest = Infinity;
         kept.forEach(function (k) { smallest = Math.min(smallest, k.glyph); });
         var want = !kept.length ? 2 : smallest < SMALL_GLYPH ? Math.min(3, Math.ceil(2 * WANTED_GLYPH / smallest) / 2) : 0;
