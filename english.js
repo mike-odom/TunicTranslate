@@ -67,7 +67,30 @@
   // Words that win a tie against the more frequent word they sound like
   // ("hole" over "whole", "flee" over "flea", "gnaw" over "na"), because the
   // frequency order picks the wrong one. Keep this short: it only settles exact homophones.
-  var PREFERRED = { hole: true, flee: true, gnaw: true };
+  // The rest are words the Tunic manual uses where a more frequent homophone would be wrong
+  // ("the heir", "free every fairy", "the canonical plane", "roll to dodge", "don't hoard",
+  // "wait"): measured on the translated manual, the frequency choice (air, ferry, plain,
+  // role, horde, weight) was the wrong one far more often than the right one.
+  var PREFERRED = { hole: true, flee: true, gnaw: true, heir: true, fairy: true, plane: true, roll: true, hoard: true, wait: true };
+
+  // "their" outranks "there", so a pair of glyphs is read "their" unless the words around
+  // it say it is the other: "there is", "there are", "over there", "out there".
+  var THERE_NEXT = /^(is|are|was|were|will|lives|lived|once|may|must|can|could|would|might|has|have|had|exists|remains|still|no|used|seems|appears)$/;
+  var THERE_PREV = /^(over|out|from|up|down|go|get|got|back|here)$/;
+
+  function settleThere(words) {
+    words.forEach(function (w, i) {
+      var at = w.alternatives.indexOf('there');
+      if (w.english !== 'their' || at < 0) return;
+      var next = i + 1 < words.length ? words[i + 1].english : null, prev = i ? words[i - 1].english : null;
+      if ((next && THERE_NEXT.test(next)) || (prev && THERE_PREV.test(prev))) {
+        w.alternatives = w.alternatives.slice();
+        w.alternatives[at] = 'their';
+        w.english = 'there';
+      }
+    });
+    return words;
+  }
 
   /**
    * ARPAbet phonemes for a decoded glyph (see Trunic.decodeGlyph), or null when
@@ -328,6 +351,7 @@
           weak: !!w.weak          // the recognizer was unsure this bar is a word (see recognize.js)
         };
       });
+      settleThere(words);
       return {
         text: words.map(function (w) { return w.english || '?'; }).join(' '),
         phonetic: words.map(function (w) { return w.spelling; }).join(' '),

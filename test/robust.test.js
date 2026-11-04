@@ -13,7 +13,7 @@ const sample = jpeg.decode(fs.readFileSync(path.join(__dirname, 'fixtures', 'smp
 const LINES = [
   'the lever overworked the fulcrum shattered a hole in',
   'truth will thunder open and all manner of disquiet',
-  'contradictions will gnaw apart the canonical plain',
+  'contradictions will gnaw apart the canonical plane',
   'the thread is snagged into a squirming coil with',
   'no beginning and no end flee to your arcs',
   'old ones and become your predestined selves'

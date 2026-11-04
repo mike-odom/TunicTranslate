@@ -58,7 +58,7 @@ test('recognition of the sample image reads all six English lines exactly', () =
   assert.deepEqual(english.map((line) => line.text), [
     'the lever overworked the fulcrum shattered a hole in',
     'truth will thunder open and all manner of disquiet',
-    'contradictions will gnaw apart the canonical plain',
+    'contradictions will gnaw apart the canonical plane',
     'the thread is snagged into a squirming coil with',
     'no beginning and no end flee to your arcs',
     'old ones and become your predestined selves'
@@ -210,6 +210,27 @@ test('words at the same cost go to the more frequent one, except preferred words
   // an ordinary tie still goes to the more frequent word
   const pair = English.lookup(['B', 'EH', 'R']);   // bare / bear
   assert.equal(pair.word, lines.indexOf('bare') < lines.indexOf('bear') ? 'bare' : 'bear');
+});
+
+test('homophones the Tunic text uses beat the more frequent word they sound like', () => {
+  const read = (...p) => English.lookup(p);
+  assert.equal(read('EH', 'R').word, 'heir');            // not "air"
+  assert.equal(read('F', 'EH', 'R', 'IY').word, 'fairy'); // not "ferry"
+  assert.equal(read('P', 'L', 'EY', 'N').word, 'plane');  // not "plain"
+  assert.equal(read('R', 'OW', 'L').word, 'roll');        // not "role"
+  assert.equal(read('HH', 'AO', 'R', 'D').word, 'hoard'); // not "horde"
+  assert.equal(read('W', 'EY', 'T').word, 'wait');        // not "weight"
+});
+
+test('"their" is read "there" when the next or previous word says so, and "their" otherwise', () => {
+  const glyph = (id, vowelId, vowelFirst) => ({
+    inner: id ? T.getGlyph(id).inner : 0, outer: vowelId ? T.getGlyph(vowelId).outer : 0, vowelFirst: !!vowelFirst
+  });
+  const word = (g) => ({ cells: [g], spelling: '' });
+  const text = (...words) => English.translate({ lines: [{ words }] })[0].text;
+  const dhere = word(glyph('dh', 'ere'));
+  assert.equal(text(dhere), 'their');
+  assert.equal(text(dhere, word(glyph('z', 'i', true))), 'there is');
 });
 
 test('the schwa swaps cheaply with any vowel, while consonant changes stay expensive', () => {
